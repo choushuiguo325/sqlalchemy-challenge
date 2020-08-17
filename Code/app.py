@@ -3,8 +3,7 @@
 import sqlalchemy
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine,inspect,func,distinct
-
+from sqlalchemy import create_engine,inspect,func
 
 from flask import Flask,jsonify
 import pandas as pd
@@ -32,7 +31,22 @@ def calc_temps(start,end):
         filter(measurements.date >= start).filter(measurements.date <= end).all()
 
 
-app = Flask("__name__")
+def calc_temps_start(start):
+    """TMIN, TAVG, and TMAX for a list of dates.
+    
+    Args:
+        start_date (string): A date string in the format %Y-%m-%d
+        end_date (string): A date string in the format %Y-%m-%d
+        
+    Returns:
+        TMIN, TAVE, and TMAX
+    """
+    
+    return session.query(func.min(measurements.tobs), func.avg(measurements.tobs), func.max(measurements.tobs)).\
+        filter(measurements.date >= start).all()
+
+
+
 routes = {
     "1":"Query Precipitation Data from '2016-08-03' to '2017-08-03' : /api/v1.0/precipitation",
     "2":"Query Station Data: /api/v1.0/stations",
@@ -45,6 +59,10 @@ routes = {
 precipitations_dict = pd.read_csv("../Output/precipitations.csv").set_index("Date").to_dict()["Precipitation Scores"]
 stations_dict = pd.read_csv("../Resources/hawaii_stations.csv").to_dict(orient='records')
 active_temp_dic = pd.read_csv("../Output/tem_active_station.csv").set_index("Date").to_dict()["Temperature"]
+
+
+app = Flask("__name__")
+
 
 @app.route("/")
 def home_page():
@@ -69,25 +87,23 @@ def tobs():
                 
     return jsonify(active_temp_dic)
 
-# @app.route("/api/v1.0/<start>")
-# def temp_start():
-                
-#     return
-
+@app.route("/api/v1.0/<start>")
+def temp_start(start):
+    results = calc_temps_start(start)[0]
+    return (
+        f"Minimum temperature: {results[0]};"
+        f"Average temperature: {round(results[1],1)};"
+        f"Maximum temperature: {results[2]};"
+    )
 
 @app.route("/api/v1.0/<start>/<end>")
 def temp_range(start,end):
-    new_s = "'" + start + "'"
-    new_e = "'" + end + "'"
-
-    results =  calc_temps(new_s,new_e)[0]
-    return results
-    # return f'''
-    #         Minimum temperature: {results[0]};\n
-    #         Average temperature: {results[1]};\n
-    #         Maximum temperature: {results[2]};\n
-
-    #  '''
+    results = calc_temps(start,end)[0]
+    return (
+        f"Minimum temperature: {results[0]};"
+        f"Average temperature: {round(results[1],1)};"
+        f"Maximum temperature: {results[2]};"
+    )
     
 if __name__ == "__main__":
     app.run(debug=True)
